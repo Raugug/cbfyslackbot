@@ -6,9 +6,7 @@ const listSchema = new Schema({
 },
 {
   timestamps: { createdAt: "created_at", updatedAt: "updated_at" }
-}
-);
+});
 
 const List = mongoose.model("List", listSchema);
-
 module.exports= List;

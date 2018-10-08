@@ -4,7 +4,7 @@ const ontime = require('ontime');
 const mongoose = require('mongoose');
 const List = require('./models/List')
 
-//// HELPER ////
+//// PRINT HELPER ////
 const showList = (a) => {
     let showMode = a.map(e=>` <@${e}>`)
     return showMode;
@@ -41,17 +41,19 @@ mongoose
     console.error("Error connecting to mongo", err);
   });
 
-
-
 ///CREATE LEADERS IN DB FOR TESTING///
 List.create().then(list => {
     console.log(list);
   }).catch(err => console.log(err))
 ///////////////////////////////////////
 
+
+
+
+
 //// START ////
 ontime({
-    cycle: ['Mon 02:44:00']
+    cycle: ['Fri 10:00:00']
 }, (ot) => {
     console.log("START")
     bot.login()
@@ -71,8 +73,6 @@ ontime({
     ot.done()
     return
 })
-
-
 
 //// RECEIVING MESSAGES ////
 
@@ -98,7 +98,6 @@ const mssgReader = (message, user, channel) => {
     }
 }
 
-
 //// GROUPS FORMATION ////
 
 const groupsize  = (num) => {
@@ -117,8 +116,7 @@ const groups = (a) => {
     if (a[1]==0) console.log(a[0]+' groups of '+a[2])
     else console.log(a[0]+' groups; '+a[1]+' of '+(a[2]+1)+' and '+(a[0]-a[1])+' of '+a[2])
 }
-  
-  
+
 const shuffle = (a) => {
     a.sort(() => { return Math.random() - (0.5)})
     return a;
@@ -152,18 +150,17 @@ const getLeaders = (groups,lastWeekLeaders) => {
 }
 
 //// STOP ////
-
 ontime({
-    cycle: ['Mon 02:44:15']
+    cycle: ['Fri 12:00:00']
 }, (ot) => {
     console.log("STOP")
 
-    // ENDTIME EVENT //
     List.findOne({}, {}, {sort:{'created_at':-1}}).then((list)=> {
         lastWeekLeaders = list.lastweek
-
+        
     }).then(()=>{
-
+        
+        // ENDTIME EVENT //
         bot.on('endtime', () => {
             
             let gConfig = groupsize(numOfPeople)
