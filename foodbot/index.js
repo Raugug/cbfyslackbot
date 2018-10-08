@@ -1,8 +1,8 @@
 require('dotenv').config()
 const SlackBot = require('slackbots');
 const ontime = require('ontime');
-//const User = require('./models/User')
-//const Leaders = require('./models/Leaders')
+const mongoose = require('mongoose');
+const List = require('./models/List')
 
 //// HELPER ////
 const showList = (a) => {
@@ -10,30 +10,52 @@ const showList = (a) => {
     return showMode;
 }
 
-//////// BOT ////////
+//////// CREATE BOT ////////
 let bot = new SlackBot({
     token: process.env.TOKEN,
     name: 'gordify'
 });
 
-//// FAKE TEST DATA ////
+//// FAKE USERS FOR TESTING////
 let people = [];
-let numOfPeople = Math.floor(Math.random() * (25 - 5) + 5);
+let numOfPeople = Math.floor(Math.random() * (55 - 5) + 5);
 for (let i=1; i<=numOfPeople; i++){
     people.push(i)
 }
-console.log(numOfPeople+' people')
-let lastWeekLeaders = [8,7,6,5,4,3,2,1]
-////////
+console.log(numOfPeople+' random users')
+///////////////////////////////////////
+let lastWeekLeaders;
+
+//// CONNECT TO  DB ////
+mongoose
+  .connect(
+    process.env.DBURL,
+    { useNewUrlParser: true }
+  )
+  .then(x => {
+    console.log(
+      `Connected to Mongo! Database name: "${x.connections[0].name}"`
+    );
+  })
+  .catch(err => {
+    console.error("Error connecting to mongo", err);
+  });
+
+
+
+///CREATE LEADERS IN DB FOR TESTING///
+List.create().then(list => {
+    console.log(list);
+  }).catch(err => console.log(err))
+///////////////////////////////////////
 
 //// START ////
 ontime({
-    cycle: ['Sun 23:07:00']
+    cycle: ['Mon 02:44:00']
 }, (ot) => {
     console.log("START")
     bot.login()
     bot._events = bot.evs;
-    //bot.emit('start')
 
     // START EVENTS //
     bot.on('start', () => {
@@ -92,7 +114,6 @@ const groupsize  = (num) => {
 }
 
 const groups = (a) => {
-    console.log("CONFIGURATION: ")
     if (a[1]==0) console.log(a[0]+' groups of '+a[2])
     else console.log(a[0]+' groups; '+a[1]+' of '+(a[2]+1)+' and '+(a[0]-a[1])+' of '+a[2])
 }
@@ -118,53 +139,58 @@ const distribution = (people, gConf) => {
     return groups;
 }
 
-const getLeaders = (groups) => {
-    let leaders = []
-    groups.forEach(e => {
-      let leader = e[0];
-      for (let i=0; i<e.length-1; i++) {
-        if (lastWeekLeaders.includes(leader)) {leader = e[i+1]}
-      }
-      leaders.push(leader)
-    })
-    return leaders;
+const getLeaders = (groups,lastWeekLeaders) => {
+    let leaders = [] 
+        groups.forEach(e => {
+            let leader = e[0];
+            for (let i=0; i<e.length-1; i++) {
+                if (lastWeekLeaders.includes(leader)) {leader = e[i+1]}
+            }
+            leaders.push(leader)
+        })
+        return leaders;
 }
 
 //// STOP ////
 
 ontime({
-    cycle: ['Sun 23:07:20']
+    cycle: ['Mon 02:44:15']
 }, (ot) => {
     console.log("STOP")
 
     // ENDTIME EVENT //
-    bot.on('endtime', () => {
-        console.log('LAST WEEK LEADERS: '+ lastWeekLeaders)
-    
-        let gConfig = groupsize(numOfPeople)
-        groups(gConfig)
-        let randomPeople = shuffle(people)
-        let weekGroups = distribution (randomPeople, gConfig)
-        let weekLeaders = getLeaders(weekGroups);
-    
-        weekGroups.forEach((e, i) =>{
-            console.log("GROUP:", e)
-            console.log("LEADER:", weekLeaders[i])
+    List.findOne({}, {}, {sort:{'created_at':-1}}).then((list)=> {
+        lastWeekLeaders = list.lastweek
+
+    }).then(()=>{
+
+        bot.on('endtime', () => {
+            
+            let gConfig = groupsize(numOfPeople)
+            groups(gConfig)
+            let randomPeople = shuffle(people)
+            let weekGroups = distribution (randomPeople, gConfig)
+            let weekLeaders = getLeaders(weekGroups, lastWeekLeaders);
+            
+            /* weekGroups.forEach((e, i) =>{
+                console.log("GROUP:", e)
+                console.log("LEADER:", weekLeaders[i])
+            }) */
+            let message = '';
+            
+            weekGroups.forEach((e, i) =>{
+                message += `Group ${i+1}: ${showList(e)}`
+                message += `\nLeader: <@${weekLeaders[i]}>\n`
+            })
+            bot.postMessage('general', 'Time to lunch. today we have the following groups:');
+            bot.postMessage('general', message);
+            List.updateOne({ 'lastweek': lastWeekLeaders }, { $set: { 'lastweek': weekLeaders } }).then((list)=> console.log("UPDATED", list))
+            lastWeekLeaders = weekLeaders;
+            
         })
-        let message = '';
-    
-        weekGroups.forEach((e, i) =>{
-            message += `Group ${i+1}: ${showList(e)}`
-            message += `\nLeader: <@${weekLeaders[i]}>\n`
-        })
-        bot.postMessage('general', 'Time to lunch. today we have the following groups:');
-        bot.postMessage('general', message);
-        lastWeekLeaders = weekLeaders;
-        console.log('WEEK LEADERS UPDATED: '+ lastWeekLeaders)
-    
+        bot.emit('endtime')
+        bot._events = {};
     })
-    bot.emit('endtime')
-    bot._events = {};
     ot.done()
     return
 })
